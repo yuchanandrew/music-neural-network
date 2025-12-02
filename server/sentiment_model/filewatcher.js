@@ -11,8 +11,12 @@ wss.on("connection", () => {
 });
 
 watcher.on("change", (path) => {
-  const data = fs.readFileSync("./current_index.json", "utf-8");
-  wss.clients.forEach((client) => client.send(data));
+  const rawData = fs.readFileSync("./current_index.json", "utf-8");
+  const data = JSON.parse(rawData);
+  // console.log(data);
+  const track = data.track;
+  console.log(`Now pointing to ${track}`);
+  wss.clients.forEach((client) => client.send(rawData));
 });
 
 console.log("WebSocket Server running on port 8080");

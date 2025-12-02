@@ -47,6 +47,7 @@ const WebPlayback = ({ token }: Props) => {
 
       ws.onmessage = (message) => {
         const newData = JSON.parse(message.data);
+        console.log(`Pointing towards ${newData.track}`);
         setStatus(newData.status);
         setCurrentIndex(newData.index);
         setSongInPlayback(newData.spotify_id);
@@ -157,8 +158,11 @@ const WebPlayback = ({ token }: Props) => {
           />
         )}
 
+        {/* Establish a target id for Selenium detection */}
         <div className="now-playing__side">
-          <div className="now-playing__name">{currentTrack?.name}</div>
+          <div id="target-track-name" className="now-playing__name">
+            {currentTrack?.name}
+          </div>
           <div className="now-playing__artist">
             {currentTrack?.artists?.[0]?.name}
           </div>
@@ -173,9 +177,7 @@ const WebPlayback = ({ token }: Props) => {
         <button
           id="target"
           className="btn-spotify"
-          onClick={() =>
-            player && player.togglePlay() && console.log("Clicked")
-          }
+          onClick={() => player && player.togglePlay()}
         >
           {isPaused ? "PLAY" : "PAUSE"}
         </button>

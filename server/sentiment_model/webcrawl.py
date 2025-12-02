@@ -1,6 +1,7 @@
 import json
 import time
 import copy
+import sys
 
 # ------------------------------------------ WEBCRAWLER --------------------------------------------
 
@@ -46,7 +47,7 @@ def record_song():
     print("Recording...")
 
     for _ in range(int(RATE / CHUNK * RECORD_SECONDS)):
-        data = stream.read(CHUNK)
+        data = stream.read(CHUNK, exception_on_overflow=False)
         frames.append(data)
 
     print("Pyaudio done.")
@@ -62,34 +63,58 @@ def record_song():
     wf.writeframes(b"".join(frames))
     wf.close()
 
-def open_selenium():
-    driver = webdriver.Chrome()
+def open_selenium(index):
+    driver = webdriver.Chrome(options=chrome_options)
     link_to_crawl = "http://localhost:5173/"
 
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 17)
     driver.get(link_to_crawl)
 
     wait.until(
         EC.visibility_of_all_elements_located((By.TAG_NAME, "img"))
     )
 
-    elem = wait.until(
-        EC.element_to_be_clickable((By.XPATH, "//button[@id='target']"))
+    name = wait.until(
+        EC.presence_of_element_located((By.XPATH, "//div[@id='target-track-name']"))
     )
 
-    time.sleep(2)
+    track_name = name.text # Create a static variable to store value in; elem closing does not affect this
 
-    print(f"Elem: {elem}")
+    print(f"Name: {track_name}")
 
-    elem.click()
+    while True:
+        try:
+            elem = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//button[@id='target']"))
+            )
 
-    record_song()
-    
-    time.sleep(1)
+            elem.click()
 
-    driver.quit()
-    
-    print("Selenium done.")
+            print("Successfully clicked!")
+
+            time.sleep(1)
+            
+            if elem.text.lower() == "play":
+                elem.click()
+            
+            record_song()
+
+            time.sleep(1)
+
+            # Update the index in here -- gives it a bit more time to update
+            write_index(index + 1, 1)
+            print(f"Song {index}: Updated index to {index + 1}")
+
+            time.sleep(1)
+
+            driver.quit()
+
+            print("Selenium done.")
+
+            return track_name
+        except Exception as e:
+            print("Retrying: ", e)
+            time.sleep(0.5)
 
 # open_selenium()
 
@@ -210,21 +235,12 @@ def analyze_audio(audio_path, input_json_path, output_json_path, json_index):
     
     print("Done!")
 
+    return json_object["spotify_id"], json_object["track"] # Comparison data in relation to open_selenium output
 
 input_json_path = r"server\sentiment_model\muse_v3.json"
 output_json_path = r"server\sentiment_model\output.json"
 
-# # Test function runs:
-# analyze_audio(audio_path, input_json_path, output_json_path, json_index=0)
-# analyze_audio(audio_path, input_json_path, output_json_path, json_index=1)
-
 # ----------------------------------------- MAIN -------------------------------------------------
-# Create a state-changing function to communicate between .py and .tsx
-# state_path = r"server/sentiment_model/state.json"
-
-# def write_status(status):
-#     with open(state_path, "w") as f:
-#         json.dump({"state": status}, f)
 
 # MUSE DATASET READ
 with open(input_json_path, mode="r") as f:
@@ -241,33 +257,69 @@ def read_current_index():
     
     return current_index_json
 
-def write_index(index, status):
-    with open(current_track_path, mode="w") as f:
-        json.dump({"status": status,
-                   "index": index, 
-                   "spotify_id": input_json_data[index]["spotify_id"]
-                   }, f, indent=2)
+# Establish an atomic function to prevent corrupted JSON
+def write_index_atomic(path, data):
+    temp = path + ".tmp"
+    with open(temp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(temp, path)
 
-# MUST HAVE FIRST SONG IN DATASET ALREADY IN CURRENT_INDEX.JSON
+def write_index(index, status):
+    write_index_atomic("current_index.json", {
+        "status": status,
+        "index": index, 
+        "spotify_id": input_json_data[index]["spotify_id"],
+        "track": input_json_data[index]["track"]
+    })
+
+# MUST HAVE SONG IN DATASET ALREADY IN CURRENT_INDEX.JSON
+
+# Import email notification
+from email_sender import send_success_email, send_failure_email
+
+# Keep track of track that is inputted and track that is being outputted
+# TODO: Check if this works and also make sure that this appends new entries and NOT replaces them
+def track_name_comparison(input_name, input_id, output_name, output_id):
+    with open(r"server/sentiment_model/comparison.json", mode="r") as f:
+        data = json.load(f)
+    
+    data.append({
+        "input_id": input_id,
+        "input_track_name": input_name,
+        "output_id": output_id,
+        "output_track_name": output_name,
+    })
+    with open(r"server/sentiment_model/comparison.json", mode="w") as f:
+        json.dump(data, f, indent=2)
+
+    if input_id != output_id:
+        send_failure_email()
+        sys.exit() # Exit the script if the input_id != output_id
 
 audio_path = r"server\sentiment_model\output.wav"
 
-
 def process_song(index):
-    # 1. Open selenium and recprd song
-    open_selenium()
-    print(f"Processing song {index}: Selenium opened")
+    # 0. Read the song
+    # 1. Open selenium and record song
+    input_id = input_json_data[index]["spotify_id"]
+    input_name = open_selenium(index)
+    print(f"Processing song {index}")
+
+    # #2. Update index early so that there is less room for error (check if this works)
+    # write_index(index + 1, 1)
+    # print(f"Song {index}: Updated index to {index + 1}")
 
     # 2. Extract and record audio features
-    analyze_audio(audio_path, input_json_path, output_json_path, index)
+    output_id, output_name = analyze_audio(audio_path, input_json_path, output_json_path, index)
     print(f"Song {index}: Audio analyzed")
 
-    # 3. Update output .json file for next song
-    write_index(index + 1, 1)
-    print(f"Song {index}: Updated index to {index + 1}")
+    track_name_comparison(input_name=input_name, input_id=input_id, output_name=output_name, output_id=output_id)
 
 def main(start_index):
     index = start_index
+
+    if index != 0 and index % 100 == 0:
+        send_success_email(index // 100) # Send a success email with the batch number (per 100)
     
     while(index < data_length):
         try:

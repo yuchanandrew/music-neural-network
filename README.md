@@ -1,3 +1,17 @@
+# Music Neural Network
+By Andrew Rho
+
+## Introduction
+
+This neural network project is made to allow users to make more in-depth music recommendation searches than what is currently available. Since the deprecation of Spotify API's recommendation and audio feature extraction endpoints, there has been a significant barrier of accessing an easier method of receiving better curated recommendations. Some of the key input features that are to be highlighted in this model include:
+
+  **1. Search by feature:** Where Spotify API had been able to detect high-level audio features of songs (such as "loudness", "danceability", etc.), this program allows users to search for songs based on similar high-level audio features (TODO: such as...)
+
+  **2. Search by audio clip:** The program is also designed to take in an audio input that allows the model to find music in the database that has similar low-level and mid-level audio features, such as tempo, RMS, ZCR, MFCC, and Chromagrams.
+
+## Tools & Methodologies (TODO)
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

@@ -63,6 +63,10 @@ const WebPlayback = ({ token }: Props) => {
   }, []);
 
   useEffect(() => {
+    console.log("React index state changed: ", currentIndex);
+  }, [currentIndex]);
+
+  useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://sdk.scdn.co/spotify-player.js";
     script.async = true;
@@ -118,7 +122,13 @@ const WebPlayback = ({ token }: Props) => {
 
   useEffect(() => {
     const startPlayback = async () => {
-      if (!songInPlayback || !player) return;
+      if (!songInPlayback) return;
+
+      if (!playerRef.current || !deviceIdRef.current) {
+        console.log("Player not ready yet. Retrying...");
+        setTimeout(startPlayback, 300);
+        return;
+      }
 
       try {
         // Start playback
@@ -191,6 +201,7 @@ const WebPlayback = ({ token }: Props) => {
       </div>
       <div>Status: {status}</div>
       <div>Song: {songInPlayback}</div>
+      {currentIndex != null && <div id="current-index">{currentIndex - 1}</div>}
     </div>
   );
 };

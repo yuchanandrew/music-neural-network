@@ -67,7 +67,7 @@ def open_selenium(index):
     driver = webdriver.Chrome(options=chrome_options)
     link_to_crawl = "http://localhost:5173/"
 
-    wait = WebDriverWait(driver, 17)
+    wait = WebDriverWait(driver, 20)
     driver.get(link_to_crawl)
 
     wait.until(
@@ -88,22 +88,55 @@ def open_selenium(index):
                 EC.element_to_be_clickable((By.XPATH, "//button[@id='target']"))
             )
 
-            elem.click()
-
-            print("Successfully clicked!")
-
             time.sleep(1)
             
-            if elem.text.lower() == "play":
+            # if elem.text.lower() == "play":
+            #     elem.click()
+
+            # Ensure that audio is actually playing
+            i = 0
+            while elem.text.lower() != "pause":
+                if i >= 2:
+                    print("Too many attempts. Something is wrong with the while loop.")
+                    time.sleep(2)
+                    
+                    print("Resetting...")
+                    i = 0
+                    driver.refresh()
+
                 elem.click()
+                time.sleep(0.1)
+                
+                i += 1
+
+            print("Successfully clicked!")
             
             record_song()
 
             time.sleep(1)
 
+            # If by THIS point, the audio is still not working, kill the program
+            if elem.text.lower() == "play":
+                print("Audio was not playing during iteration.")
+                sys.exit()
+
             # Update the index in here -- gives it a bit more time to update
             write_index(index + 1, 1)
             print(f"Song {index}: Updated index to {index + 1}")
+
+            # prev = index
+
+            # wait.until(
+            #     lambda driver: driver.find_element(By.XPATH, "//div[@id='current-index']") == str(prev)
+            # )
+            
+            time.sleep(2)
+            
+            updated_index = driver.find_element(By.XPATH, "//div[@id='current-index']").text
+            print(f"[UPDATE] {updated_index}")
+
+            react_index = int(updated_index)
+            print(f"[WebPlayback.tsx] current_index: {react_index}")
 
             time.sleep(1)
 
@@ -111,7 +144,7 @@ def open_selenium(index):
 
             print("Selenium done.")
 
-            return track_name
+            return react_index, track_name
         except Exception as e:
             print("Retrying: ", e)
             time.sleep(0.5)
@@ -265,7 +298,7 @@ def write_index_atomic(path, data):
     os.replace(temp, path)
 
 def write_index(index, status):
-    write_index_atomic("current_index.json", {
+    write_index_atomic("server/sentiment_model/current_index.json", {
         "status": status,
         "index": index, 
         "spotify_id": input_json_data[index]["spotify_id"],
@@ -301,8 +334,8 @@ audio_path = r"server\sentiment_model\output.wav"
 def process_song(index):
     # 0. Read the song
     # 1. Open selenium and record song
-    input_id = input_json_data[index]["spotify_id"]
-    input_name = open_selenium(index)
+    react_index, input_name = open_selenium(index)
+    input_id = input_json_data[react_index]["spotify_id"]
     print(f"Processing song {index}")
 
     # #2. Update index early so that there is less room for error (check if this works)
@@ -319,7 +352,8 @@ def main(start_index):
     index = start_index
 
     if index != 0 and index % 100 == 0:
-        send_success_email(index // 100) # Send a success email with the batch number (per 100)
+        count = index / 100
+        send_success_email(count) # Send a success email with the batch number (per 100)
     
     while(index < data_length):
         try:

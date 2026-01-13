@@ -1,3 +1,15 @@
+'''
+RUN INSTRUCTIONS:
+
+Given ~\music_neural_network>, follow the following instructions
+
+1. `npm run dev` will run the media webplayer
+2. `cd server` followed by `npm run dev` will run the music API calls
+3. `cd server` followed by `cd sentiment_model` followed by `npm start` will run the filewatcher Websocket server
+
+After all these steps have been followed, simply run the python script below!
+'''
+
 import json
 import time
 import copy

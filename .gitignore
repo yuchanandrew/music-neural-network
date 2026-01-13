@@ -30,3 +30,6 @@ dist-ssr
 *muse_v3.csv*
 *muse_v3.json*
 results/
+
+# Cache
+*.cache*
